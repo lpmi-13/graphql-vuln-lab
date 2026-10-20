@@ -1,0 +1,2 @@
+# Let the learner restart the service and reset the project without a password.
+laborant ALL=(root) NOPASSWD: /usr/bin/systemctl restart graphql-lab.service, /usr/bin/systemctl start graphql-lab.service, /usr/bin/systemctl stop graphql-lab.service, /usr/bin/systemctl status graphql-lab.service, /opt/graphql-lab-toolbox/reset.sh

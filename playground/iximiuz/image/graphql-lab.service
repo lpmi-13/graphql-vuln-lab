@@ -1,0 +1,15 @@
+[Unit]
+Description=Django + Strawberry GraphQL API (lab target)
+After=network.target
+
+[Service]
+Type=simple
+User=laborant
+Group=laborant
+WorkingDirectory=/opt/graphql-lab
+ExecStart=/opt/graphql-lab-venv/bin/uvicorn graphql_lab.asgi:application --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

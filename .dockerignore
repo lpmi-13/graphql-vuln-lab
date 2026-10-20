@@ -1,0 +1,7 @@
+**/__pycache__/
+**/*.pyc
+app/db.sqlite3
+app/staticfiles/
+app/.venv/
+harness/fixtures/
+.git/

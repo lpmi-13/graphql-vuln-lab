@@ -1,0 +1,67 @@
+kind: playground
+# Registered name (labctl appended the id suffix on `playground create`).
+# Refresh with: labctl playground update graphql-vuln-lab-6ac4f832 -f this-file
+name: graphql-vuln-lab-6ac4f832
+base: flexbox
+title: GraphQL Security Lab
+description: A stock Django + Strawberry GraphQL API with five classic weaknesses to probe and harden.
+categories:
+    - security
+    - linux
+playground:
+    networks:
+        - name: local
+          subnet: 172.16.0.0/24
+    machines:
+        - name: dev-01
+          users:
+            - name: root
+            - name: laborant
+              default: true
+              welcome: |
+                A Django + Strawberry GraphQL API is running at
+                http://127.0.0.1:8000/graphql/ on this VM.
+
+                Probe each weakness with the wrappers in ~/toolbox, harden the
+                project under ~/graphql-lab, then apply your changes with:
+                  ~/toolbox/reload.sh      # restart the service
+                  sudo ~/toolbox/reset.sh  # restore the original project
+          drives:
+            - source: oci://ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v2
+              mount: /
+              size: 20GiB
+          network:
+            interfaces:
+                - address: 172.16.0.2/24
+                  network: local
+          resources:
+            cpuCount: 2
+            ramSize: 4GiB
+    tabs:
+        - id: terminal-dev-01
+          kind: terminal
+          name: dev-01
+          machine: dev-01
+        - id: graphiql
+          kind: http-port
+          name: GraphiQL
+          machine: dev-01
+          number: 8000
+          access: public
+    initTasks:
+        init_dev_01_ready:
+            name: init_dev_01_ready
+            machine: dev-01
+            init: true
+            user: root
+            timeout_seconds: 300
+            run: |-
+                #!/bin/bash
+                /opt/graphql-lab-tasks/wait_ready.sh
+    accessControl:
+        canList:
+            - owner
+        canRead:
+            - owner
+        canStart:
+            - owner
