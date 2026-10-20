@@ -11,7 +11,7 @@ kind: challenge
 playground:
   name: graphql-vuln-lab-6ac4f832
 
-difficulty: medium
+difficulty: easy
 
 categories:
   - security
@@ -127,7 +127,7 @@ Introspection is disabled — the schema no longer leaks.
 ---
 Strawberry ships a schema **extension** for exactly this. Extensions are passed
 to `strawberry.Schema(..., extensions=[...])`. Look at
-[`DisableIntrospection`](https://strawberry.rocks/docs/extensions/disable-introspection).
+[Strawberry's `DisableIntrospection` documentation](https://strawberry.rocks/docs/extensions/disable-introspection).
 ::
 
 ## 2. Error messages suggest real field names
@@ -309,10 +309,9 @@ Query depth is capped — deep queries are rejected, shallow ones still work.
 ---
 :summary: Hint
 ---
-Another extension:
-[`QueryDepthLimiter(max_depth=...)`](https://strawberry.rocks/docs/extensions/query-depth-limiter)
-from `strawberry.extensions`. Pick a limit that rejects the probe's nesting but
-allows ordinary queries.
+Another extension: `QueryDepthLimiter(max_depth=...)` from
+`strawberry.extensions`. See [Strawberry's `QueryDepthLimiter` documentation](https://strawberry.rocks/docs/extensions/query-depth-limiter).
+Pick a limit that rejects the probe's nesting but allows ordinary queries.
 ::
 
 ## Done
