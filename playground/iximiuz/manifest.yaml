@@ -22,10 +22,11 @@ playground:
                 A Django + Strawberry GraphQL API is running at
                 http://127.0.0.1:8000/graphql/ on this VM.
 
-                Probe each weakness with the wrappers in ~/toolbox, harden the
-                project under ~/graphql-lab, then apply your changes with:
-                  ~/toolbox/reload.sh      # restart the service
-                  sudo ~/toolbox/reset.sh  # restore the original project
+                Probe each weakness with curl and jq, harden the project under
+                ~/graphql-lab, then apply your changes with:
+                  sudo systemctl restart graphql-lab.service
+                To restore the original project:
+                  sudo ~/toolbox/reset.sh
           drives:
             - source: oci://ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v2
               mount: /

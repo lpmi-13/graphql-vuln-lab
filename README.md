@@ -27,9 +27,11 @@ The reference "answer key" for all three edited files lives in `harness/solution
   defaults** (no lab comments, nothing contrived).
 - `tasks/` — the five `patch_*` live-endpoint pollers + readiness probe, baked
   to `/opt/graphql-lab-tasks` and called by the challenge's graded tasks.
-- `toolbox/` — learner probe wrappers (`introspect.sh`, `suggest.sh`,
+- `toolbox/` — probe wrappers (`introspect.sh`, `suggest.sh`,
   `csrf-probe.sh`, `alias-probe.sh`, `depth-probe.sh`) plus `reload.sh` /
   `reset.sh`, baked to `/opt/graphql-lab-toolbox` and symlinked to `~/toolbox`.
+  The lesson shows learners the raw `curl` / `jq` / `systemctl` commands instead
+  of the wrappers; only `reset.sh` is still mentioned (in the terminal welcome).
 - `harness/` — a local validation harness proving every technique flips
   vulnerable→patched, in isolation and combined (35/35).
 - `playground/iximiuz/` — the custom rootfs `Dockerfile` (FROM

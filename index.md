@@ -72,9 +72,17 @@ You've inherited **Acme Social**, a small Django app whose API is served by
 weaknesses that show up again and again in real GraphQL services. The code is a
 perfectly ordinary Strawberry/Django setup; the *defaults* are the problem.
 
-Your job: confirm each weakness from the terminal, then fix it in the real
-project under `~/graphql-lab`. After each fix, run `~/toolbox/reload.sh` and the
-lab will re-check the live endpoint.
+Your job: confirm each weakness from the terminal with `curl` and `jq`, then fix
+it in the real project under `~/graphql-lab`. After each fix, restart the
+service so your changes take effect, and the lab will re-check the live
+endpoint:
+
+```bash
+sudo systemctl restart graphql-lab.service
+```
+
+It takes a couple of seconds to come back up. If it doesn't (a typo in your
+edit, say), `sudo systemctl status graphql-lab.service` shows why.
 
 The project you edit:
 
@@ -90,10 +98,16 @@ GraphQL introspection lets a client download the entire schema. Handy in
 development, a gift to an attacker in production.
 
 ```bash
-~/toolbox/introspect.sh      # dumps every type and field if introspection is on
+curl -fsS -G http://127.0.0.1:8000/graphql/ \
+  --data-urlencode 'query={__schema{queryType{name} types{name kind fields{name}}}}' \
+  | jq .
 ```
 
-Disable introspection in the schema, then `~/toolbox/reload.sh`.
+`-G` turns `--data-urlencode` into a URL query string, so this is a plain
+`GET /graphql/?query=...`. If introspection is on, the response lists every
+type and every field.
+
+Disable introspection in the schema, then restart the service.
 
 ::simple-task
 ---
@@ -122,10 +136,15 @@ Turning off introspection isn't enough. Ask for a field that *almost* exists and
 the server helpfully corrects you — rebuilding the schema one guess at a time.
 
 ```bash
-~/toolbox/suggest.sh         # misspells a field; watch for "Did you mean ...?"
+curl -fsS -G http://127.0.0.1:8000/graphql/ \
+  --data-urlencode 'query={ usrs { id } }' \
+  | jq -r '.errors[].message'
 ```
 
-Make the server stop suggesting field names, then reload.
+There's no `usrs` field, so the query fails. Watch the error message for
+`Did you mean ...?`
+
+Make the server stop suggesting field names, then restart the service.
 
 ::simple-task
 ---
@@ -155,11 +174,19 @@ Django docs). That means any site can POST a mutation to it in a logged-in
 user's browser.
 
 ```bash
-~/toolbox/csrf-probe.sh      # a forged, tokenless mutation POST — currently 200
+curl -s -o /dev/null -w 'HTTP %{http_code}\n' \
+  -X POST http://127.0.0.1:8000/graphql/ \
+  -H 'content-type: application/json' \
+  -d '{"query":"mutation{ updateBio(text:\"owned\"){ ok } }"}'
 ```
 
-Make Django enforce CSRF on the endpoint again, then reload. (A request that
-carries a valid CSRF token must still work — the checker verifies both.)
+This is what a forged cross-site request looks like: a state-changing mutation
+with no CSRF cookie and no token. `HTTP 200` means it was accepted (vulnerable);
+`HTTP 403` means Django rejected it (fixed).
+
+Make Django enforce CSRF on the endpoint again, then restart the service. (A
+request that carries a valid CSRF token must still work — the checker verifies
+both.)
 
 ::simple-task
 ---
@@ -188,14 +215,35 @@ The endpoint has a per-request rate limiter, so a brute-force of the
 `verifyOtp` mutation should be slow. But GraphQL lets one request alias the same
 field many times — and the limiter counts that as a *single* request.
 
+First build one mutation that packs 60 OTP guesses, each under its own alias
+(`a0`, `a1`, ...):
+
 ```bash
-~/toolbox/alias-probe.sh     # 60 OTP attempts in ONE request
+Q="mutation{ $(for i in $(seq 0 59); do printf 'a%d: verifyOtp(code:"%04d"){ ok } ' "$i" "$i"; done)}"
+echo "$Q"
 ```
+
+Then send it as a single POST. Once you've fixed CSRF in step 3 the endpoint
+wants a token, so fetch one from `/api/csrf/` and send it back as both the
+cookie and the `X-CSRFToken` header, the same way a legitimate client does:
+
+```bash
+TOKEN="$(curl -s -o /dev/null -c - http://127.0.0.1:8000/api/csrf/ | awk '$6 == "csrftoken" {print $7}')"
+
+curl -s -X POST http://127.0.0.1:8000/graphql/ \
+  -H 'content-type: application/json' \
+  -b "csrftoken=$TOKEN" -H "X-CSRFToken: $TOKEN" \
+  --data "$(jq -nc --arg q "$Q" '{query: $q}')" \
+  | jq '{attempts: (.data | length), errors: (.errors | length)}'
+```
+
+`jq -n --arg` wraps the query in a JSON request body and handles the quoting.
+`attempts: 60` means all 60 guesses ran inside one rate-limited request.
 
 There's no built-in alias cap in Strawberry/Python, so you'll **write** one: a
 small graphql-core validation rule that counts aliased fields and rejects a
 request with too many. Put it in a new file `graphql_lab/validation.py` and
-register it on the schema, then reload.
+register it on the schema, then restart the service.
 
 ::simple-task
 ---
@@ -234,11 +282,16 @@ deep as a client likes. With no depth limit, one request can force an enormous
 amount of work.
 
 ```bash
-~/toolbox/depth-probe.sh     # a deeply nested query that currently resolves
+curl -s -G http://127.0.0.1:8000/graphql/ \
+  --data-urlencode 'query={ me{ posts{ author{ posts{ author{ posts{ author{ posts{ id }}}}}}}} }' \
+  | jq '{data_present: (.data != null), errors: (.errors | length)}'
 ```
 
-Add a query-depth limit to the schema, then reload. (A normal shallow query
-must still work.)
+`data_present: true` with no errors means the server resolved the whole chain
+(vulnerable). A depth-limit error means it refused (fixed).
+
+Add a query-depth limit to the schema, then restart the service. (A normal
+shallow query must still work.)
 
 ::simple-task
 ---
