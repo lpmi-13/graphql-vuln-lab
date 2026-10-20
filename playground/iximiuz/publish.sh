@@ -9,13 +9,13 @@
 # by its oci:// URL. Keep the three names/tags below in sync with index.md and
 # manifest.yaml.
 #
-#   ROOTFS_IMAGE     default: ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v2
+#   ROOTFS_IMAGE     default: ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v3
 #   PLAYGROUND_NAME  default: graphql-vuln-lab-6ac4f832
 #   CHALLENGE_NAME   default: graphql-vuln-lab-ca696b14
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-rootfs_image="${ROOTFS_IMAGE:-ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v2}"
+rootfs_image="${ROOTFS_IMAGE:-ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v3}"
 playground_name="${PLAYGROUND_NAME:-graphql-vuln-lab-6ac4f832}"
 challenge_name="${CHALLENGE_NAME:-graphql-vuln-lab-ca696b14}"
 

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Build the custom rootfs OCI image for the GraphQL security lab.
 #
-#   ROOTFS_IMAGE   full image ref (default: ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v2)
+#   ROOTFS_IMAGE   full image ref (default: ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v3)
 #   PUSH_IMAGE     set to 1 to docker push after building
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${repo_root}"
 
-rootfs_image="${ROOTFS_IMAGE:-ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v2}"
+rootfs_image="${ROOTFS_IMAGE:-ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v3}"
 push_image="${PUSH_IMAGE:-0}"
 
 echo "Building ${rootfs_image} ..."

@@ -28,7 +28,7 @@ playground:
                 To restore the original project:
                   sudo ~/toolbox/reset.sh
           drives:
-            - source: oci://ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v2
+            - source: oci://ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v3
               mount: /
               size: 20GiB
           network:
@@ -43,12 +43,6 @@ playground:
           kind: terminal
           name: dev-01
           machine: dev-01
-        - id: graphiql
-          kind: http-port
-          name: GraphiQL
-          machine: dev-01
-          number: 8000
-          access: public
     initTasks:
         init_dev_01_ready:
             name: init_dev_01_ready
@@ -61,8 +55,8 @@ playground:
                 /opt/graphql-lab-tasks/wait_ready.sh
     accessControl:
         canList:
-            - owner
+            - anyone
         canRead:
-            - owner
+            - anyone
         canStart:
-            - owner
+            - anyone
