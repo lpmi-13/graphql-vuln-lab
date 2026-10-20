@@ -1,0 +1,30 @@
+from graphql import GraphQLError
+from graphql.validation import ValidationRule
+
+MAX_ALIASES = 15
+
+
+class MaxAliasCountRule(ValidationRule):
+    """Reject operations that use more than MAX_ALIASES aliased fields.
+
+    Field aliasing lets a single request repeat the same field many times
+    under different response keys. A per-request rate limiter counts one HTTP
+    request regardless, so capping aliases here closes that bypass.
+    """
+
+    def __init__(self, context):
+        super().__init__(context)
+        self.alias_count = 0
+
+    def enter_field(self, node, *_args):
+        if node.alias is None:
+            return
+        self.alias_count += 1
+        if self.alias_count > MAX_ALIASES:
+            self.report_error(
+                GraphQLError(
+                    f"Too many aliases: {self.alias_count} exceeds the "
+                    f"limit of {MAX_ALIASES}.",
+                    node,
+                )
+            )
