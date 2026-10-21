@@ -74,11 +74,6 @@ apply_config() {
   else
     cp "$HARNESS_DIR/fixtures/urls_vuln.py" "$PKG/urls.py"
   fi
-  if echo "$1" | grep -qw alias; then
-    cp "$HARNESS_DIR/solution/validation.py" "$PKG/validation.py"
-  else
-    rm -f "$PKG/validation.py"
-  fi
 }
 
 # poll <tech> -> 0 if the endpoint is SECURE for that technique
@@ -98,7 +93,6 @@ assert() {
 restore_pristine() {
   cp "$HARNESS_DIR/fixtures/schema_vuln.py" "$PKG/schema.py"
   cp "$HARNESS_DIR/fixtures/urls_vuln.py" "$PKG/urls.py"
-  rm -f "$PKG/validation.py"
 }
 
 cleanup() { stop_server; restore_pristine; }

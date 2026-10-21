@@ -16,10 +16,10 @@ real project, and a live-polling check flips green. Based on Intigriti's
 | 1 | Introspection enabled | add `DisableIntrospection()` extension | `schema.py` |
 | 2 | Field suggestions ("Did you mean") | add `StrawberryConfig(disable_field_suggestions=True)` | `schema.py` |
 | 3 | CSRF (view ships `csrf_exempt`) | remove the `csrf_exempt` wrapper | `urls.py` |
-| 4 | Alias-packing rate-limit bypass | **write** a custom alias-count validation rule | `validation.py` + `schema.py` |
+| 4 | Alias-packing rate-limit bypass | **write** a custom alias-count validation rule | `schema.py` |
 | 5 | Deep-query DoS | add `QueryDepthLimiter(max_depth=5)` | `schema.py` |
 
-The reference "answer key" for all three edited files lives in `harness/solution/`.
+The reference "answer key" for the edited files lives in `harness/solution/`.
 
 ## What's in here
 

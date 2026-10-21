@@ -192,9 +192,8 @@ Field suggestions are disabled — errors no longer name real fields.
 ---
 :summary: Hint
 ---
-This one is a **schema config** flag, not an extension:
-`strawberry.Schema(..., config=StrawberryConfig(disable_field_suggestions=True))`.
-Import `StrawberryConfig` from `strawberry.schema.config`.
+This one is a **schema config** flag, not an extension. See
+[Strawberry's `disable_field_suggestions` documentation](https://strawberry.rocks/docs/types/schema-configurations#disable_field_suggestions).
 ::
 
 ## 3. State-changing requests have no CSRF protection
@@ -313,9 +312,8 @@ operation](https://graphql.org/learn/security/#breadth-and-batch-limiting).
 
 Strawberry provides a built-in alias limiter, but in this exercise you'll
 **write** a small graphql-core validation rule that counts aliased fields and
-rejects a request with too many. Put it in a new file
-`graphql_lab/validation.py` and register it on the schema, then restart the
-service.
+rejects a request with too many. Define the rule in `graphql_lab/schema.py`,
+register it on the schema, then restart the service.
 
 ::simple-task
 ---

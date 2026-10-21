@@ -24,6 +24,11 @@ if "depth" in flags:
     extensions.append("QueryDepthLimiter(max_depth=5)")
 
 lines = ["import strawberry"]
+if "alias" in flags:
+    lines.extend([
+        "from graphql import GraphQLError",
+        "from graphql.validation import ValidationRule",
+    ])
 if ext_imports:
     inner = ", ".join(sorted(ext_imports))
     lines.append(f"from strawberry.extensions import {inner}")
@@ -32,7 +37,30 @@ if "suggestions" in flags:
 lines.append("")
 lines.append("from blog.schema import Mutation, Query")
 if "alias" in flags:
-    lines.append("from graphql_lab.validation import MaxAliasCountRule")
+    lines.extend([
+        "",
+        "MAX_ALIASES = 15",
+        "",
+        "",
+        "class MaxAliasCountRule(ValidationRule):",
+        "    def __init__(self, context):",
+        "        super().__init__(context)",
+        "        self.alias_count = 0",
+        "",
+        "    def enter_field(self, node, *_args):",
+        "        if node.alias is None:",
+        "            return",
+        "        self.alias_count += 1",
+        "        if self.alias_count > MAX_ALIASES:",
+        "            self.report_error(",
+        "                GraphQLError(",
+        '                    f"Too many aliases: {self.alias_count} exceeds the "',
+        '                    f"limit of {MAX_ALIASES}.",',
+        "                    node,",
+        "                )",
+        "            )",
+    ])
+    lines.append("")
 lines.append("")
 
 args = ["    query=Query,", "    mutation=Mutation,"]

@@ -28,7 +28,7 @@ playground:
                 To restore the original project:
                   sudo ~/toolbox/reset.sh
           drives:
-            - source: oci://ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v3
+            - source: oci://ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v4
               mount: /
               size: 20GiB
           network:
