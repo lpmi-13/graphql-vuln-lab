@@ -93,6 +93,10 @@ Three pieces, refreshed together by `playground/iximiuz/publish.sh`:
 bash playground/iximiuz/publish.sh
 ```
 
+`publish.sh` reads the current GHCR image tag from the playground manifest,
+increments its version (for example, `v9` to `v10`), builds and pushes that
+image, then updates the playground and records the new tag in the manifest.
+
 > A `kind: challenge` cannot carry a custom drive inline (`labctl content push`
 > rejects it with *"playground must have a name"*). The custom rootfs therefore
 > lives in a named custom playground, and the challenge references that name.
