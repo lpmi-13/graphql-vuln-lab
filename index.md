@@ -334,6 +334,8 @@ Alias abuse is capped — packed requests are rejected, normal ones still work.
 Subclass `graphql.validation.ValidationRule`. Implement `enter_field(self,
 node, *_)`, count the ones where `node.alias` is set, and call
 `self.report_error(GraphQLError(...))` past your threshold.
+Return `BREAK` (from `graphql.language`) after reporting so your rule emits
+only one error for an oversized request.
 ::
 
 ::hint-box

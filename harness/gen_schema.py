@@ -27,6 +27,7 @@ lines = ["import strawberry"]
 if "alias" in flags:
     lines.extend([
         "from graphql import GraphQLError",
+        "from graphql.language import BREAK",
         "from graphql.validation import ValidationRule",
     ])
 if ext_imports:
@@ -59,6 +60,7 @@ if "alias" in flags:
         "                    node,",
         "                )",
         "            )",
+        "            return BREAK",
     ])
     lines.append("")
 lines.append("")

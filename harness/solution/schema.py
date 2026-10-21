@@ -1,5 +1,6 @@
 import strawberry
 from graphql import GraphQLError
+from graphql.language import BREAK
 from graphql.validation import ValidationRule
 from strawberry.extensions import (
     AddValidationRules,
@@ -37,6 +38,7 @@ class MaxAliasCountRule(ValidationRule):
                     node,
                 )
             )
+            return BREAK
 
 
 schema = strawberry.Schema(
