@@ -72,6 +72,26 @@ You've inherited **Acme Social**, a small Django app whose API is served by
 weaknesses that show up again and again in real GraphQL services. The code is a
 perfectly ordinary Strawberry/Django setup; the *defaults* are the problem.
 
+Here's the path a request takes through this lab:
+
+```text
+curl / browser
+    │  HTTP GET or POST /graphql/ with a GraphQL query or mutation
+    ▼
+Uvicorn server (127.0.0.1:8000)
+    ▼
+Django: route request, apply CSRF middleware and POST rate limit
+    ▼
+Strawberry GraphQL view: parse and validate against the schema
+    ▼
+Execute fields → resolvers → Django ORM → SQLite database
+    │
+    └── JSON response (data or errors) ──→ curl / browser
+```
+
+The supplied view bypasses Django's CSRF check until you fix it in step 3.
+GraphQL validation can reject a query before any resolver runs.
+
 **Inspired by:** Intigriti's [Five easy ways to hack GraphQL
 targets](https://www.intigriti.com/researchers/blog/hacking-tools/five-easy-ways-to-hack-graphql-targets).
 For the wider security principles behind the exercises, see [GraphQL's security
@@ -181,8 +201,20 @@ Import `StrawberryConfig` from `strawberry.schema.config`.
 
 The GraphQL view is wrapped in `csrf_exempt` (straight from Strawberry's own
 Django docs). That leaves state-changing mutations without Django's CSRF check.
+For this lab, `updateBio` changes the first seeded user's profile, which the
+`me` query reads back.
 For background on the attack conditions, see [Intigriti's CSRF
 guide](https://www.intigriti.com/researchers/blog/hacking-tools/csrf-a-complete-guide-to-exploiting-advanced-csrf-vulnerabilities).
+
+Check the current bio before sending the mutation:
+
+```bash
+curl -fsS -G http://127.0.0.1:8000/graphql/ \
+  --data-urlencode 'query={ me { username bio } }' \
+  | jq .data.me
+```
+
+Now send the mutation:
 
 ```bash
 curl -s -o /dev/null -w 'HTTP %{http_code}\n' \
@@ -191,9 +223,28 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' \
   -d '{"query":"mutation{ updateBio(text:\"owned\"){ ok } }"}'
 ```
 
+Run the `me` query again. Its `bio` should now be `"owned"`, independently
+confirming the write.
+
 This probe sends a state-changing mutation with no CSRF cookie or token.
-`HTTP 200` means it was accepted (vulnerable); `HTTP 403` means Django rejected
-it (fixed).
+`HTTP 200` means it was accepted (vulnerable); `HTTP 403` confirms the
+tokenless request was rejected. The task also checks that a mutation with a
+valid CSRF cookie and header still succeeds. If both requests return `403`,
+the task stays pending.
+
+Check that second case yourself:
+
+```bash
+TOKEN="$(curl -s -o /dev/null -c - http://127.0.0.1:8000/api/csrf/ | awk '$6 == "csrftoken" {print $7}')"
+
+curl -sSi -X POST http://127.0.0.1:8000/graphql/ \
+  -H 'content-type: application/json' \
+  -b "csrftoken=$TOKEN" -H "X-CSRFToken: $TOKEN" \
+  -d '{"query":"mutation{ updateBio(text:\"owned\"){ ok } }"}'
+```
+
+It should return `HTTP 200` and `"ok": true`. The same IP is also subject to
+the `60/m` POST rate limit, so repeated probes can temporarily return `403`.
 
 Make Django enforce CSRF on the endpoint again, then restart the service. (A
 request that carries a valid CSRF token must still work — the checker verifies
@@ -215,8 +266,10 @@ CSRF is enforced — forged POSTs are rejected while valid ones still work.
 ---
 :summary: Hint
 ---
-The fix is a deletion, not an addition. Look at how the view is wrapped in
-`graphql_lab/urls.py` and let Django's `CsrfViewMiddleware` do its job. See
+Remove only the `csrf_exempt(...)` wrapper in `graphql_lab/urls.py`; keep
+`GraphQLView.as_view(schema=schema)` inside the `ratelimit(...)(...)` call.
+Otherwise `graphql_view` is a decorator rather than a Django view, and the
+valid-token request fails. Let Django's `CsrfViewMiddleware` do its job. See
 [Django's CSRF documentation](https://docs.djangoproject.com/en/6.1/howto/csrf/)
 for how clients send the token. A browser client primes its token from
 `GET /api/csrf/`.

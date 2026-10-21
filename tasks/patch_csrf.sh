@@ -18,5 +18,5 @@ if [ "$FORGED" = "403" ] && [ "$OK" = "true" ]; then
   exit 0
 fi
 
-echo "CSRF not enforced (forged POST returned ${FORGED}, token request ok=${OK})." >&2
+echo "CSRF check failed (tokenless POST HTTP ${FORGED}; valid-token mutation ok=${OK:-missing})." >&2
 exit 1
