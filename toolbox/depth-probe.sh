@@ -4,7 +4,7 @@
 set -euo pipefail
 URL="http://127.0.0.1:8000/graphql/"
 
-Q='{ me{ posts{ author{ posts{ author{ posts{ author{ posts{ id }}}}}}}} }'
+Q='{ me{ posts{ author{ posts{ author{ posts{ id }}}}}} }'
 
 echo "Sending a deeply nested query:"
 curl -s -G "$URL" --data-urlencode "query=$Q" \

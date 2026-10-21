@@ -23,7 +23,7 @@ tagz:
   - appsec
 
 createdAt: 2026-10-20
-updatedAt: 2026-10-20
+updatedAt: 2026-10-21
 
 tasks:
   init_wait_ready:
@@ -358,12 +358,23 @@ depth](https://graphql.org/learn/security/#depth-limiting).
 
 ```bash
 curl -s -G http://127.0.0.1:8000/graphql/ \
-  --data-urlencode 'query={ me{ posts{ author{ posts{ author{ posts{ author{ posts{ id }}}}}}}} }' \
+  --data-urlencode 'query={ me{ posts{ author{ posts{ author{ posts{ id }}}}}} }' \
   | jq '{data_present: (.data != null), errors: (.errors | length)}'
 ```
 
 `data_present: true` with no errors means the server resolved the whole chain
 (vulnerable). A depth-limit error means it refused (fixed).
+
+To choose a limit, count fields on the longest path from the query root to a
+leaf. Count the leaf field too; braces do not add depth. In the probe above,
+`me (1) → posts (2) → author (3) → posts (4) → author (5) → posts (6) → id (7)`.
+The normal `{ me { username posts { title } } }` query reaches depth 3, while
+`{ me { posts { author { username } } } }` reaches depth 4.
+
+Start with the deepest query clients actually need, allow a little room, and
+keep the cap below the abusive query's depth. For this app, `max_depth=5` is a
+reasonable starting point: it allows those ordinary queries and rejects the
+seven-field probe. Check both kinds of query after changing the schema.
 
 Add a query-depth limit to the schema, then restart the service. (A normal
 shallow query must still work.)
@@ -386,7 +397,8 @@ Query depth is capped — deep queries are rejected, shallow ones still work.
 ---
 Another extension: `QueryDepthLimiter(max_depth=...)` from
 `strawberry.extensions`. See [Strawberry's `QueryDepthLimiter` documentation](https://strawberry.rocks/docs/extensions/query-depth-limiter).
-Pick a limit that rejects the probe's nesting but allows ordinary queries.
+Use the field counts above to pick a limit between the ordinary and probe
+depths.
 ::
 
 ## Done
