@@ -5,6 +5,7 @@ from graphql.validation import ValidationRule
 from strawberry.extensions import (
     AddValidationRules,
     DisableIntrospection,
+    MaskErrors,
     QueryDepthLimiter,
 )
 from strawberry.schema.config import StrawberryConfig
@@ -47,7 +48,11 @@ schema = strawberry.Schema(
     config=StrawberryConfig(disable_field_suggestions=True),
     extensions=[
         DisableIntrospection(),
+        # Mask only exceptions raised inside resolvers; GraphQL's own
+        # validation errors carry no original_error and stay readable.
+        MaskErrors(should_mask_error=lambda error: error.original_error is not None),
         AddValidationRules([MaxAliasCountRule]),
-        QueryDepthLimiter(max_depth=5),
+        # The deepest query the app needs (a post page) has depth 3.
+        QueryDepthLimiter(max_depth=3),
     ],
 )

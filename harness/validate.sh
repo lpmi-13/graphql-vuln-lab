@@ -4,12 +4,15 @@
 # Boots the app in several configurations and asserts that each hardening
 # control flips exactly its own graded poll from fail -> pass, that no control
 # flips another's poll (orthogonality), and that the fully hardened build passes
-# all five while legitimate requests keep working.
+# all five while legitimate requests keep working. It also checks the depth
+# limits the lesson allows, and that the pollers' POSTs do not use up the
+# learner's rate-limit budget.
 #
 # Env overrides:
 #   PYTHON   python interpreter with the app's deps (default: python3)
 #   UVICORN  uvicorn entrypoint             (default: uvicorn)
-#   PORT     listen port                    (default: 8000)
+#   CHECK_SRC  address the pollers send from (default: 127.0.0.2; empty
+#              sends from the default address and skips the rate-limit test)
 set -u
 
 HARNESS_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -22,7 +25,13 @@ PYTHON="${PYTHON:-python3}"
 UVICORN="${UVICORN:-uvicorn}"
 PORT=""  # chosen fresh per server start, below
 
-TECHS=(introspection field_suggestions csrf alias_limit depth_limit)
+TECHS=(introspection field_suggestions dev_defaults alias_limit depth_limit)
+
+# The pollers pause before POSTing to stay under the rate limit when the
+# examiner retries them every second; the harness polls each one only once.
+export CHECK_DELAY=0
+export CHECK_SRC="${CHECK_SRC-127.0.0.2}"
+
 SERVER_PID=""
 PASS=0
 FAIL=0
@@ -66,11 +75,11 @@ start_server() {
 }
 
 # --- config application -------------------------------------------------------
-# apply_config "<schema flags>" "<csrf: on|off>"
+# apply_config "<schema flags>" "<ide: on|off>"
 apply_config() {
   "$PYTHON" "$HARNESS_DIR/gen_schema.py" $1 > "$PKG/schema.py"
   if [ "$2" = "off" ]; then
-    cp "$HARNESS_DIR/solution/urls.py" "$PKG/urls.py"   # csrf_exempt removed
+    cp "$HARNESS_DIR/solution/urls.py" "$PKG/urls.py"   # graphql_ide=None
   else
     cp "$HARNESS_DIR/fixtures/urls_vuln.py" "$PKG/urls.py"
   fi
@@ -78,6 +87,16 @@ apply_config() {
 
 # poll <tech> -> 0 if the endpoint is SECURE for that technique
 poll() { bash "$TASKS/patch_${1}.sh" >/dev/null 2>&1; }
+
+# assert_all <tech that should be secure>... -> every other tech should be vuln
+assert_all() {
+  local t s want
+  for t in "${TECHS[@]}"; do
+    want=vuln
+    for s in "$@"; do [ "$t" = "$s" ] && want=secure; done
+    assert "$t" "$want"
+  done
+}
 
 # assert <tech> <secure|vuln>
 assert() {
@@ -106,17 +125,7 @@ cp "$PKG/urls.py" "$HARNESS_DIR/fixtures/urls_vuln.py"
 say "Baseline: stock defaults are vulnerable on all five"
 apply_config "" on
 start_server
-for t in "${TECHS[@]}"; do assert "$t" vuln; done
-BIO_BEFORE="$(curl -fsS -G "$GRAPHQL_URL" \
-  --data-urlencode 'query={ me { bio } }' | jq -r '.data.me.bio')"
-poll csrf  # The vulnerable check fails, but its valid-token probe still runs.
-BIO_AFTER="$(curl -fsS -G "$GRAPHQL_URL" \
-  --data-urlencode 'query={ me { bio } }' | jq -r '.data.me.bio')"
-if [ -n "$BIO_BEFORE" ] && [ "$BIO_BEFORE" != "null" ] && [ "$BIO_BEFORE" = "$BIO_AFTER" ]; then
-  ok "csrf poll preserves the profile bio"
-else
-  bad "csrf poll changed the profile bio"
-fi
+assert_all
 stop_server
 
 # Per-technique isolation: each control flips only its own poll.
@@ -127,29 +136,83 @@ declare -A FLAG_FOR=(
   [depth_limit]="depth"
 )
 for target in introspection field_suggestions alias_limit depth_limit; do
-  say "Only '${target}' hardened (CSRF still exempt)"
+  say "Only '${target}' hardened (IDE still on, errors unmasked)"
   apply_config "${FLAG_FOR[$target]}" on
   start_server
-  for t in "${TECHS[@]}"; do
-    if [ "$t" = "$target" ]; then assert "$t" secure; else assert "$t" vuln; fi
-  done
+  assert_all "$target"
   stop_server
 done
 
-say "Only 'csrf' hardened (schema still stock)"
-apply_config "" off
+say "Only 'dev_defaults' hardened (IDE off, resolver errors masked)"
+apply_config "mask" off
 start_server
-for t in "${TECHS[@]}"; do
-  if [ "$t" = "csrf" ]; then assert "$t" secure; else assert "$t" vuln; fi
-done
+assert_all dev_defaults
 stop_server
 
-say "Fully hardened: all five pass"
-apply_config "introspection suggestions alias depth" off
+say "Half of 'dev_defaults': resolver errors masked, IDE still on"
+apply_config "mask" on
 start_server
-for t in "${TECHS[@]}"; do assert "$t" secure; done
+assert_all
+stop_server
+
+say "Half of 'dev_defaults': IDE off, errors unmasked"
+apply_config "" off
+start_server
+assert_all
+stop_server
+
+# MaskErrors' default also masks validation errors, which hides "Did you
+# mean" as a side effect; the dev_defaults poll must not accept it.
+say "Over-masked: IDE off, MaskErrors() masking every error"
+apply_config "mask=all" off
+start_server
+assert_all field_suggestions
+stop_server
+
+# Strawberry's depth excludes the leaf field: the probe is depth 6 and the
+# post page depth 3. The lesson's answer is 3 (covered above); the check also
+# accepts headroom up to 5, but not 2 (breaks the post page) or 6 (lets the
+# probe through).
+for depth in 2 5 6; do
+  if [ "$depth" = 5 ]; then want=secure; else want=vuln; fi
+  say "Depth boundary: max_depth=${depth}"
+  apply_config "depth=${depth}" on
+  start_server
+  assert depth_limit "$want"
+  stop_server
+done
+
+say "Fully hardened: all five pass"
+apply_config "introspection suggestions mask alias depth" off
+start_server
+assert_all "${TECHS[@]}"
 # Each poller also asserts a legitimate request still works, so a green
 # "secure" here already means normal traffic is unaffected.
+
+if [ -n "$CHECK_SRC" ]; then
+  say "Checker POSTs leave the learner's rate-limit budget alone"
+  # Poll until the checker's own budget is spent. The limiter uses fixed
+  # 60-second windows, so a fixed number of polls can straddle a reset.
+  MUT='{"query":"mutation{ verifyOtp(code:\"0000\"){ ok } }"}'
+  for _ in $(seq 1 60); do
+    poll alias_limit
+    checker_code="$(curl -s -o /dev/null -w '%{http_code}' --interface "$CHECK_SRC" \
+      -H 'content-type: application/json' -X POST "$GRAPHQL_URL" --data "$MUT")"
+    [ "$checker_code" = "403" ] && break
+  done
+  learner_code="$(curl -s -o /dev/null -w '%{http_code}' \
+    -H 'content-type: application/json' -X POST "$GRAPHQL_URL" --data "$MUT")"
+  if [ "$checker_code" = "403" ]; then
+    ok "checker exhausted its own budget (HTTP 403 from ${CHECK_SRC})"
+  else
+    bad "checker POST from ${CHECK_SRC}: expected 403, got ${checker_code}"
+  fi
+  if [ "$learner_code" = "200" ]; then
+    ok "learner POST from 127.0.0.1 still accepted"
+  else
+    bad "learner POST from 127.0.0.1: expected 200, got ${learner_code}"
+  fi
+fi
 stop_server
 
 say "Summary"

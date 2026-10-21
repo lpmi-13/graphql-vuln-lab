@@ -4,24 +4,38 @@
 Used only by the validation harness to test each control in isolation and in
 combination. The learner never sees this; they edit the real schema.py by hand.
 
-Usage: gen_schema.py [introspection] [suggestions] [alias] [depth]
-With no flags it prints the pristine, fully-vulnerable schema.
+Usage: gen_schema.py [introspection] [suggestions] [mask[=all]] [alias] [depth[=N]]
+With no flags it prints the pristine, fully-vulnerable schema. `mask` masks only
+resolver errors (the intended fix); `mask=all` is MaskErrors' default, which
+also masks validation errors. `depth` defaults to max_depth=3, the lesson's
+answer.
 """
 import sys
 
-flags = set(sys.argv[1:])
+flags = {}
+for arg in sys.argv[1:]:
+    name, _, value = arg.partition("=")
+    flags[name] = value
 
 ext_imports = []
 extensions = []
 if "introspection" in flags:
     ext_imports.append("DisableIntrospection")
     extensions.append("DisableIntrospection()")
+if "mask" in flags:
+    ext_imports.append("MaskErrors")
+    if flags["mask"] == "all":
+        extensions.append("MaskErrors()")
+    else:
+        extensions.append(
+            "MaskErrors(should_mask_error=lambda error: error.original_error is not None)"
+        )
 if "alias" in flags:
     ext_imports.append("AddValidationRules")
     extensions.append("AddValidationRules([MaxAliasCountRule])")
 if "depth" in flags:
     ext_imports.append("QueryDepthLimiter")
-    extensions.append("QueryDepthLimiter(max_depth=5)")
+    extensions.append(f"QueryDepthLimiter(max_depth={flags['depth'] or 3})")
 
 lines = ["import strawberry"]
 if "alias" in flags:

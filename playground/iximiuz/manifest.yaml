@@ -28,7 +28,7 @@ playground:
                 To restore the original project:
                   sudo ~/toolbox/reset.sh
           drives:
-            - source: oci://ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v4
+            - source: oci://ghcr.io/lpmi-13/graphql-vuln-lab-rootfs:v5
               mount: /
               size: 20GiB
           network:
@@ -43,6 +43,13 @@ playground:
           kind: terminal
           name: dev-01
           machine: dev-01
+        # The service listens on 0.0.0.0 because exposed ports only reach
+        # services bound to the machine's main interface.
+        - id: http-port-dev-01
+          kind: http-port
+          name: Acme Social
+          machine: dev-01
+          number: 8000
     initTasks:
         init_dev_01_ready:
             name: init_dev_01_ready

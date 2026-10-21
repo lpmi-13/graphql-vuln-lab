@@ -61,6 +61,10 @@ class Query:
     def posts(self) -> list[PostType]:
         return [post_type(p) for p in Post.objects.order_by("id")]
 
+    @strawberry.field
+    def post(self, id: strawberry.ID) -> PostType:
+        return post_type(Post.objects.get(pk=id))
+
 
 @strawberry.type
 class UpdateBioResult:

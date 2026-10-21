@@ -1,17 +1,32 @@
 #!/bin/bash
 # Shared helpers for the live-endpoint pollers.
 #
-# Query probes go over GET (a safe method, so they are unaffected by whether
-# CSRF is enforced yet). Mutation probes go over POST and carry a freshly primed
-# CSRF token, which the stock (csrf_exempt) service ignores and the hardened
-# service requires — so a mutation poll behaves correctly in both states.
+# Query probes go over GET, which the POST rate limit (60/m per client address)
+# ignores. Mutation probes go over POST and count against it.
+#
+# Every probe is sent from CHECK_SRC (127.0.0.2) rather than 127.0.0.1. The
+# limiter keys on the client address, so the checker spends its own budget and
+# never the learner's. The examiner retries a pending task every second, so
+# pollers that POST also wait CHECK_DELAY seconds first to stay under the limit
+# themselves. Set CHECK_SRC= to send from the default address.
 
 BASE_URL="${BASE_URL:-http://127.0.0.1:8000}"
 GRAPHQL_URL="${GRAPHQL_URL:-${BASE_URL}/graphql/}"
+CHECK_SRC="${CHECK_SRC-127.0.0.2}"
+CHECK_DELAY="${CHECK_DELAY:-2}"
+
+# check_curl <curl args...> -> runs curl from CHECK_SRC when it is set.
+check_curl() {
+  if [ -n "$CHECK_SRC" ]; then
+    curl --interface "$CHECK_SRC" "$@"
+  else
+    curl "$@"
+  fi
+}
 
 # gql_get '<query string>' -> prints JSON response body
 gql_get() {
-  curl -fsS -G "$GRAPHQL_URL" --data-urlencode "query=$1" 2>/dev/null
+  check_curl -fsS -G "$GRAPHQL_URL" --data-urlencode "query=$1" 2>/dev/null
 }
 
 # is_json_object '<body>' -> 0 if the body is a JSON object, else non-zero.
@@ -23,18 +38,14 @@ is_json_object() {
   [ -n "$1" ] && printf '%s' "$1" | jq -e 'type == "object"' >/dev/null 2>&1
 }
 
-# gql_post_token '<json body>' -> prints JSON response body.
-# Primes a CSRF cookie from /api/csrf/ and sends both the cookie and the
-# matching x-csrftoken header, so the request is accepted whether or not CSRF
-# protection is currently enabled. Self-contained: the cookie jar never leaves
-# this function (an earlier version lost it across a subshell).
-gql_post_token() {
-  local jar token
-  jar="$(mktemp)"
-  curl -s -c "$jar" "${BASE_URL}/api/csrf/" >/dev/null 2>&1
-  token="$(awk '$6=="csrftoken"{print $7}' "$jar")"
-  curl -fsS -b "$jar" -H "x-csrftoken: $token" \
-    -H 'content-type: application/json' \
+# gql_post '<json body>' -> prints JSON response body. A rate-limited (403)
+# response prints nothing, so is_json_object rejects it.
+gql_post() {
+  check_curl -fsS -H 'content-type: application/json' \
     -X POST "$GRAPHQL_URL" --data "$1" 2>/dev/null
-  rm -f "$jar"
+}
+
+# pause_before_post -> wait CHECK_DELAY seconds (see above).
+pause_before_post() {
+  sleep "$CHECK_DELAY"
 }

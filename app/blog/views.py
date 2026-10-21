@@ -1,14 +1,9 @@
-from django.http import HttpResponse, JsonResponse
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.http import HttpResponse
 
 
 def index(request):
     return HttpResponse(
-        "Acme Social API. The GraphQL endpoint is at /graphql/.\n",
-        content_type="text/plain",
+        "<!doctype html>\n"
+        "<title>Acme Social API</title>\n"
+        '<p>Acme Social API. The GraphQL endpoint is at <a href="graphql/">/graphql/</a>.</p>\n'
     )
-
-
-@ensure_csrf_cookie
-def csrf_cookie(request):
-    return JsonResponse({"detail": "CSRF cookie set"})

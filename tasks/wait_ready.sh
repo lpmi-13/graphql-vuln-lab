@@ -1,6 +1,6 @@
 #!/bin/bash
 # Readiness probe: succeeds once the GraphQL endpoint answers a trivial query
-# twice in a row. Uses GET so it is unaffected by whether CSRF is enforced.
+# twice in a row. Uses GET so it never counts against the POST rate limit.
 source "$(dirname "$0")/_common.sh"
 
 hits=0
