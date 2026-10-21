@@ -113,6 +113,16 @@ say "Baseline: stock defaults are vulnerable on all five"
 apply_config "" on
 start_server
 for t in "${TECHS[@]}"; do assert "$t" vuln; done
+BIO_BEFORE="$(curl -fsS -G "$GRAPHQL_URL" \
+  --data-urlencode 'query={ me { bio } }' | jq -r '.data.me.bio')"
+poll csrf  # The vulnerable check fails, but its valid-token probe still runs.
+BIO_AFTER="$(curl -fsS -G "$GRAPHQL_URL" \
+  --data-urlencode 'query={ me { bio } }' | jq -r '.data.me.bio')"
+if [ -n "$BIO_BEFORE" ] && [ "$BIO_BEFORE" != "null" ] && [ "$BIO_BEFORE" = "$BIO_AFTER" ]; then
+  ok "csrf poll preserves the profile bio"
+else
+  bad "csrf poll changed the profile bio"
+fi
 stop_server
 
 # Per-technique isolation: each control flips only its own poll.

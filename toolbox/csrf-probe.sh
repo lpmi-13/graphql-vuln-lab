@@ -5,7 +5,7 @@ set -euo pipefail
 URL="http://127.0.0.1:8000/graphql/"
 
 echo "Forged POST (no CSRF token):"
-curl -s -o /dev/null -w 'HTTP %{http_code}\n' -X POST "$URL" \
+curl -sS -w '\nHTTP %{http_code}\n' -X POST "$URL" \
   -H 'content-type: application/json' \
   -d '{"query":"mutation{ updateBio(text:\"owned\"){ ok } }"}'
-echo "(200 = accepted / vulnerable, 403 = rejected / fixed)"
+echo '(200 with "ok": true = accepted / vulnerable, 403 = rejected / fixed)'

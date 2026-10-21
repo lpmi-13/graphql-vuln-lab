@@ -217,20 +217,22 @@ curl -fsS -G http://127.0.0.1:8000/graphql/ \
 Now send the mutation:
 
 ```bash
-curl -s -o /dev/null -w 'HTTP %{http_code}\n' \
+curl -sS -w '\nHTTP %{http_code}\n' \
   -X POST http://127.0.0.1:8000/graphql/ \
   -H 'content-type: application/json' \
   -d '{"query":"mutation{ updateBio(text:\"owned\"){ ok } }"}'
 ```
 
-Run the `me` query again. Its `bio` should now be `"owned"`, independently
-confirming the write.
+The response should include `"data":{"updateBio":{"ok":true}}`. Run the
+`me` query again. Its `bio` should now be `"owned"`, independently confirming
+the write.
 
 This probe sends a state-changing mutation with no CSRF cookie or token.
-`HTTP 200` means it was accepted (vulnerable); `HTTP 403` confirms the
-tokenless request was rejected. The task also checks that a mutation with a
-valid CSRF cookie and header still succeeds. If both requests return `403`,
-the task stays pending.
+`HTTP 200` with `"ok": true` means it was accepted (vulnerable); `HTTP 403`
+confirms the tokenless request was rejected. A GraphQL error can also have
+`HTTP 200`, so check the response body. The task also checks that a mutation
+with a valid CSRF cookie and header still succeeds. If both requests return
+`403`, the task stays pending.
 
 Check that second case yourself:
 

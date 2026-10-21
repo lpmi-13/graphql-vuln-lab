@@ -1,9 +1,10 @@
 #!/bin/bash
 # PASS (exit 0) when a forged, tokenless POST is rejected (403) AND a request
-# carrying a valid CSRF token still succeeds.
+# carrying a valid CSRF token still succeeds. Use verifyOtp so polling never
+# overwrites the learner's bio while they inspect updateBio.
 source "$(dirname "$0")/_common.sh"
 
-MUT='{"query":"mutation{ updateBio(text:\"hello\"){ ok } }"}'
+MUT='{"query":"mutation{ verifyOtp(code:\"0000\"){ ok } }"}'
 
 # 1. Forged request: no cookie, no token. Must be refused.
 FORGED="$(curl -s -o /dev/null -w '%{http_code}' \
@@ -11,7 +12,7 @@ FORGED="$(curl -s -o /dev/null -w '%{http_code}' \
   -X POST "$GRAPHQL_URL" --data "$MUT")"
 
 # 2. Legitimate request: primed csrftoken cookie + matching header. Must work.
-OK="$(gql_post_token "$MUT" | jq -r '.data.updateBio.ok' 2>/dev/null)"
+OK="$(gql_post_token "$MUT" | jq -r '.data.verifyOtp.ok' 2>/dev/null)"
 
 if [ "$FORGED" = "403" ] && [ "$OK" = "true" ]; then
   echo "CSRF is enforced — forged POSTs are rejected, valid ones still work."

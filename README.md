@@ -33,7 +33,8 @@ The reference "answer key" for all three edited files lives in `harness/solution
   The lesson shows learners the raw `curl` / `jq` / `systemctl` commands instead
   of the wrappers; only `reset.sh` is still mentioned (in the terminal welcome).
 - `harness/` — a local validation harness proving every technique flips
-  vulnerable→patched, in isolation and combined (35/35).
+  vulnerable→patched, in isolation and combined, without the CSRF poll
+  changing the learner's bio (36/36).
 - `playground/iximiuz/` — the custom rootfs `Dockerfile` (FROM
   `ghcr.io/iximiuz/labs/rootfs:ubuntu-24-04`), the `graphql-lab.service` systemd
   unit, the custom-playground `manifest.yaml`, and the build / publish scripts.
