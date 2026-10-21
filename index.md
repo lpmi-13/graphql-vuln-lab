@@ -72,6 +72,11 @@ You've inherited **Acme Social**, a small Django app whose API is served by
 weaknesses that show up again and again in real GraphQL services. The code is a
 perfectly ordinary Strawberry/Django setup; the *defaults* are the problem.
 
+**Inspired by:** Intigriti's [Five easy ways to hack GraphQL
+targets](https://www.intigriti.com/researchers/blog/hacking-tools/five-easy-ways-to-hack-graphql-targets).
+For the wider security principles behind the exercises, see [GraphQL's security
+guide](https://graphql.org/learn/security/).
+
 Your job: confirm each weakness from the terminal with `curl` and `jq`, then fix
 it in the real project under `~/graphql-lab`. After each fix, restart the
 service so your changes take effect, and the lab will re-check the live
@@ -94,8 +99,9 @@ Everything you need is below.
 
 ## 1. Introspection is wide open
 
-GraphQL introspection lets a client download the entire schema. Handy in
-development, a gift to an attacker in production.
+[GraphQL introspection](https://graphql.org/learn/introspection/) lets a client
+download the entire schema. Handy in development, a gift to an attacker in
+production.
 
 ```bash
 curl -fsS -G http://127.0.0.1:8000/graphql/ \
@@ -134,6 +140,10 @@ to `strawberry.Schema(..., extensions=[...])`. Look at
 
 Turning off introspection isn't enough. Ask for a field that *almost* exists and
 the server helpfully corrects you — rebuilding the schema one guess at a time.
+[GraphQL's security guide explains the risk of revealing field names through
+error messages](https://graphql.org/learn/security/#error-messages); the
+[Clairvoyance tool](https://github.com/nikitastupin/clairvoyance) linked in the
+Intigriti article automates that kind of schema discovery.
 
 ```bash
 curl -fsS -G http://127.0.0.1:8000/graphql/ \
@@ -170,8 +180,9 @@ Import `StrawberryConfig` from `strawberry.schema.config`.
 ## 3. State-changing requests have no CSRF protection
 
 The GraphQL view is wrapped in `csrf_exempt` (straight from Strawberry's own
-Django docs). That means any site can POST a mutation to it in a logged-in
-user's browser.
+Django docs). That leaves state-changing mutations without Django's CSRF check.
+For background on the attack conditions, see [Intigriti's CSRF
+guide](https://www.intigriti.com/researchers/blog/hacking-tools/csrf-a-complete-guide-to-exploiting-advanced-csrf-vulnerabilities).
 
 ```bash
 curl -s -o /dev/null -w 'HTTP %{http_code}\n' \
@@ -180,9 +191,9 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' \
   -d '{"query":"mutation{ updateBio(text:\"owned\"){ ok } }"}'
 ```
 
-This is what a forged cross-site request looks like: a state-changing mutation
-with no CSRF cookie and no token. `HTTP 200` means it was accepted (vulnerable);
-`HTTP 403` means Django rejected it (fixed).
+This probe sends a state-changing mutation with no CSRF cookie or token.
+`HTTP 200` means it was accepted (vulnerable); `HTTP 403` means Django rejected
+it (fixed).
 
 Make Django enforce CSRF on the endpoint again, then restart the service. (A
 request that carries a valid CSRF token must still work — the checker verifies
@@ -205,15 +216,18 @@ CSRF is enforced — forged POSTs are rejected while valid ones still work.
 :summary: Hint
 ---
 The fix is a deletion, not an addition. Look at how the view is wrapped in
-`graphql_lab/urls.py` and let Django's `CsrfViewMiddleware` do its job. A
-browser client primes its token from `GET /api/csrf/`.
+`graphql_lab/urls.py` and let Django's `CsrfViewMiddleware` do its job. See
+[Django's CSRF documentation](https://docs.djangoproject.com/en/6.1/howto/csrf/)
+for how clients send the token. A browser client primes its token from
+`GET /api/csrf/`.
 ::
 
 ## 4. Field aliases bypass the rate limiter
 
 The endpoint has a per-request rate limiter, so a brute-force of the
-`verifyOtp` mutation should be slow. But GraphQL lets one request alias the same
-field many times — and the limiter counts that as a *single* request.
+`verifyOtp` mutation should be slow. But GraphQL lets one request
+[alias the same field many times](https://graphql.org/learn/queries/#aliases) —
+and the limiter counts that as a *single* request.
 
 First build one mutation that packs 60 OTP guesses, each under its own alias
 (`a0`, `a1`, ...):
@@ -239,11 +253,14 @@ curl -s -X POST http://127.0.0.1:8000/graphql/ \
 
 `jq -n --arg` wraps the query in a JSON request body and handles the quoting.
 `attempts: 60` means all 60 guesses ran inside one rate-limited request.
+[GraphQL's security guide recommends limiting aliases within an
+operation](https://graphql.org/learn/security/#breadth-and-batch-limiting).
 
-There's no built-in alias cap in Strawberry/Python, so you'll **write** one: a
-small graphql-core validation rule that counts aliased fields and rejects a
-request with too many. Put it in a new file `graphql_lab/validation.py` and
-register it on the schema, then restart the service.
+Strawberry provides a built-in alias limiter, but in this exercise you'll
+**write** a small graphql-core validation rule that counts aliased fields and
+rejects a request with too many. Put it in a new file
+`graphql_lab/validation.py` and register it on the schema, then restart the
+service.
 
 ::simple-task
 ---
@@ -270,16 +287,19 @@ node, *_)`, count the ones where `node.alias` is set, and call
 ---
 :summary: Hint 2
 ---
-Register the rule with the `AddValidationRules([...])` extension (from
-`strawberry.extensions`). Strawberry also ships `MaxAliasesLimiter` if you'd
-rather use the built-in — but writing the rule is the point here.
+Register the rule with the
+[`AddValidationRules([...])` extension](https://strawberry.rocks/docs/extensions/add-validation-rules)
+(from `strawberry.extensions`). Strawberry also ships
+[`MaxAliasesLimiter`](https://strawberry.rocks/docs/extensions/max-aliases-limiter)
+if you'd rather use the built-in — but writing the rule is the point here.
 ::
 
 ## 5. A single deep query can exhaust the server
 
 `Post.author` and `User.posts` reference each other, so a query can nest as
 deep as a client likes. With no depth limit, one request can force an enormous
-amount of work.
+amount of work. [GraphQL's security guide recommends limiting operation
+depth](https://graphql.org/learn/security/#depth-limiting).
 
 ```bash
 curl -s -G http://127.0.0.1:8000/graphql/ \
@@ -316,8 +336,6 @@ Pick a limit that rejects the probe's nesting but allows ordinary queries.
 
 ## Done
 
-You've taken a stock GraphQL service and closed the five weaknesses from
-Intigriti's [Five easy ways to hack GraphQL
-targets](https://www.intigriti.com/researchers/blog/hacking-tools/five-easy-ways-to-hack-graphql-targets):
-introspection, field suggestions, CSRF, alias-based rate-limit bypass, and
-unbounded query depth. Same service, hardened defaults.
+You've taken a stock GraphQL service and closed five weaknesses: introspection,
+field suggestions, CSRF, alias-based rate-limit bypass, and unbounded query
+depth. Same service, hardened defaults.
